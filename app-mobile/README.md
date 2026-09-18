@@ -1,17 +1,18 @@
-# puc_access
+# Aplicativo PUC Access
 
-A new Flutter project.
+Aplicativo móvel do projeto PUC Access, desenvolvido para a disciplina de Sistemas Embarcados da PUC Minas.
 
-## Getting Started
+Até o momento, foram desenvolvidas as telas de login, cadastro de usuário e confirmação de cadastro.
 
-This project is a starting point for a Flutter application.
+O aplicativo será integrado ao sistema da catraca para realizar o cadastro dos usuários e permitir o acesso por reconhecimento facial ou cartão RFID.
 
-A few resources to get you started if this is your first Flutter project:
+## Como executar
 
-- [Learn Flutter](https://docs.flutter.dev/get-started/learn-flutter)
-- [Write your first Flutter app](https://docs.flutter.dev/get-started/codelab)
-- [Flutter learning resources](https://docs.flutter.dev/reference/learning-resources)
+Com o Flutter instalado, abra o terminal nesta pasta e execute:
 
-For help getting started with Flutter development, view the
-[online documentation](https://docs.flutter.dev/), which offers tutorials,
-samples, guidance on mobile development, and a full API reference.
+```bash
+flutter pub get
+flutter run
+```
+
+O projeto ainda está em desenvolvimento.

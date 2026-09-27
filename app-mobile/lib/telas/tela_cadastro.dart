@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 import 'tela_concluida.dart';
 
 class TelaCadastro extends StatefulWidget {
@@ -13,6 +15,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
   final TextEditingController _controladorNome = TextEditingController();
 
   bool _consentimentoAutorizado = false;
+  bool _salvando = false;
 
   static const Color _azulPrincipal = Color(0xFF0B4F8A);
   static const Color _textoPrincipal = Color(0xFF1F2937);
@@ -31,6 +34,65 @@ class _TelaCadastroState extends State<TelaCadastro> {
         content: Text('A câmera será configurada na próxima etapa.'),
       ),
     );
+  }
+
+  Future<void> _finalizarCadastro() async {
+    FocusScope.of(context).unfocus();
+
+    final nome = _controladorNome.text.trim();
+
+    if (nome.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Digite seu nome completo.'),
+        ),
+      );
+      return;
+    }
+
+    if (!_consentimentoAutorizado) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Autorize o uso do nome e imagem facial.'),
+        ),
+      );
+      return;
+    }
+
+    setState(() {
+      _salvando = true;
+    });
+
+    try {
+      await FirebaseFirestore.instance.collection('usuarios').add({
+        'nome': nome,
+        'consentimento': true,
+        'cadastroConcluido': true,
+        'criadoEm': FieldValue.serverTimestamp(),
+      });
+
+      if (!mounted) return;
+
+      Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) => const TelaConcluida(),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Erro ao salvar cadastro: $e'),
+        ),
+      );
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvando = false;
+        });
+      }
+    }
   }
 
   @override
@@ -70,42 +132,46 @@ class _TelaCadastroState extends State<TelaCadastro> {
                             fontSize: 11,
                             fontWeight: FontWeight.w700,
                             color: _azulPrincipal,
-                            height: 1.4,
                           ),
                         ),
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   Text(
                     'Complete seu cadastro',
                     style: GoogleFonts.inter(
                       fontSize: 27,
                       fontWeight: FontWeight.w700,
                       color: _textoPrincipal,
-                      height: 1.4,
                     ),
                   ),
+
                   const SizedBox(height: 7),
+
                   Text(
                     'Informe seu nome e faça o registro facial para habilitar seu acesso.',
                     style: GoogleFonts.inter(
                       fontSize: 14,
                       color: _textoSecundario,
-                      height: 1.4,
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   Text(
                     'Nome completo',
                     style: GoogleFonts.inter(
                       fontSize: 13,
                       fontWeight: FontWeight.w500,
                       color: _textoPrincipal,
-                      height: 1.4,
                     ),
                   ),
+
                   const SizedBox(height: 7),
+
                   SizedBox(
                     height: 52,
                     child: TextField(
@@ -144,7 +210,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
                       ),
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   Container(
                     height: 366,
                     width: double.infinity,
@@ -171,26 +239,30 @@ class _TelaCadastroState extends State<TelaCadastro> {
                             fontSize: 16,
                             fontWeight: FontWeight.w600,
                             color: _textoPrincipal,
-                            height: 1.4,
                           ),
                         ),
+
                         const SizedBox(height: 12),
+
                         Text(
                           'Posicione seu rosto dentro da moldura.',
                           style: GoogleFonts.inter(
                             fontSize: 12,
                             color: _textoSecundario,
-                            height: 1.4,
                           ),
                         ),
+
                         const SizedBox(height: 12),
+
                         Image.asset(
                           'assets/imagens/guia_rosto.png',
                           width: 200,
                           height: 200,
                           fit: BoxFit.contain,
                         ),
+
                         const SizedBox(height: 12),
+
                         SizedBox(
                           width: double.infinity,
                           height: 52,
@@ -218,7 +290,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   SizedBox(
                     height: 62,
                     child: Row(
@@ -256,7 +330,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
                                 : null,
                           ),
                         ),
+
                         const SizedBox(width: 10),
+
                         Expanded(
                           child: Text(
                             'Autorizo o uso do meu nome e imagem facial para autenticação de acesso.',
@@ -270,20 +346,14 @@ class _TelaCadastroState extends State<TelaCadastro> {
                       ],
                     ),
                   ),
+
                   const SizedBox(height: 18),
+
                   SizedBox(
                     width: double.infinity,
                     height: 52,
                     child: ElevatedButton(
-                      onPressed: () {
-                        FocusScope.of(context).unfocus();
-
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (context) => const TelaConcluida(),
-                          ),
-                        );
-                      },
+                      onPressed: _salvando ? null : _finalizarCadastro,
                       style: ElevatedButton.styleFrom(
                         backgroundColor: _azulPrincipal,
                         foregroundColor: Colors.white,
@@ -292,13 +362,22 @@ class _TelaCadastroState extends State<TelaCadastro> {
                           borderRadius: BorderRadius.circular(12),
                         ),
                       ),
-                      child: Text(
-                        'Finalizar cadastro',
-                        style: GoogleFonts.inter(
-                          fontSize: 15,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
+                      child: _salvando
+                          ? const SizedBox(
+                              width: 22,
+                              height: 22,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : Text(
+                              'Finalizar cadastro',
+                              style: GoogleFonts.inter(
+                                fontSize: 15,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
                     ),
                   ),
                 ],

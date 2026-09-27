@@ -1,0 +1,11 @@
+# Credencial privada Firebase Admin
+database/firebase_credentials.json
+
+# Builds temporários
+app-mobile/build/
+app-mobile/build_old/
+app-mobile/build_old2/
+
+# Python
+__pycache__/
+*.pyc

@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "824431462522",
+    "project_id": "pucacess",
+    "storage_bucket": "pucacess.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:824431462522:android:d8d490a0d06d4a054313c3",
+        "android_client_info": {
+          "package_name": "com.pucaccess.puc_access"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBI4prKIJc8wWOizK1SsNbK1LXlTo9M7Jg"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

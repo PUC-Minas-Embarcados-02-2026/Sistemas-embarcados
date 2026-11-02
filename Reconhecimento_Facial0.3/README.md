@@ -1,5 +1,11 @@
 # Protótipo — Módulo de Reconhecimento Facial
 
+**Integração real com app/Firebase:** veja [ENTREGA_FACIAL.md](../ENTREGA_FACIAL.md).
+Execute `integracao_firebase.py` para preparar fotos do app e
+`catraca_firebase.py` para reconhecer pela webcam com o modelo real.
+Os scripts de protótipo descritos abaixo ainda usam o placeholder e não devem
+ser usados para demonstrar identificação facial real.
+
 Protótipo do trabalho da disciplina de Sistemas Embarcados (catraca/totem com
 Raspberry Pi). Este módulo cobre a parte de **reconhecimento facial** descrita
 nos documentos do projeto: registro (com checagem de acessórios) e

@@ -5,7 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 import 'tela_camera.dart';
-import 'tela_concluida.dart';
+import 'tela_validacao_facial.dart';
 
 class TelaCadastro extends StatefulWidget {
   const TelaCadastro({super.key});
@@ -22,6 +22,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
   bool _abrindoCamera = false;
 
   String? _idCadastro;
+  bool _criacaoConfirmada = false;
   Uint8List? _fotoRosto;
 
   static const Color _azulPrincipal = Color(0xFF0B4F8A);
@@ -36,9 +37,8 @@ class _TelaCadastroState extends State<TelaCadastro> {
   }
 
   void _mostrarAviso(String mensagem) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(mensagem)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(mensagem)));
   }
 
   Future<void> _capturarRosto() async {
@@ -59,9 +59,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
 
     try {
       final foto = await Navigator.of(context).push<Uint8List>(
-        MaterialPageRoute<Uint8List>(
-          builder: (context) => const TelaCamera(),
-        ),
+        MaterialPageRoute<Uint8List>(builder: (context) => const TelaCamera()),
       );
 
       if (!mounted || foto == null) return;
@@ -78,87 +76,97 @@ class _TelaCadastroState extends State<TelaCadastro> {
     }
   }
 
-Future<void> _finalizarCadastro() async {
-  if (_salvando || _abrindoCamera) return;
+  Future<void> _finalizarCadastro() async {
+    if (_salvando || _abrindoCamera) return;
 
-  FocusScope.of(context).unfocus();
+    FocusScope.of(context).unfocus();
 
-  final nome = _controladorNome.text.trim();
-  final foto = _fotoRosto;
+    final nome = _controladorNome.text.trim();
+    final foto = _fotoRosto;
 
-  if (nome.isEmpty) {
-    _mostrarAviso('Digite seu nome completo.');
-    return;
-  }
+    if (nome.isEmpty) {
+      _mostrarAviso('Digite seu nome completo.');
+      return;
+    }
 
-  if (!_consentimentoAutorizado) {
-    _mostrarAviso('Autorize o uso do nome e imagem facial.');
-    return;
-  }
+    if (!_consentimentoAutorizado) {
+      _mostrarAviso('Autorize o uso do nome e imagem facial.');
+      return;
+    }
 
-  if (foto == null || foto.isEmpty) {
-    _mostrarAviso('Capture uma foto antes de finalizar.');
-    return;
-  }
+    if (foto == null || foto.isEmpty) {
+      _mostrarAviso('Capture uma foto antes de finalizar.');
+      return;
+    }
 
-  // Mantém a foto abaixo do limite de tamanho do documento.
-  const limiteFoto = 700 * 1024;
+    // Mantém a foto abaixo do limite de tamanho do documento.
+    const limiteFoto = 700 * 1024;
 
-  if (foto.lengthInBytes > limiteFoto) {
-    _mostrarAviso(
-      'A foto ficou muito grande. '
-      'Precisamos reduzir a resolução antes de salvar.',
-    );
-    return;
-  }
+    if (foto.lengthInBytes > limiteFoto) {
+      _mostrarAviso(
+        'A foto ficou muito grande. '
+        'Precisamos reduzir a resolução antes de salvar.',
+      );
+      return;
+    }
 
-  setState(() {
-    _salvando = true;
-  });
+    setState(() {
+      _salvando = true;
+    });
 
-  try {
-    final usuarios = FirebaseFirestore.instance.collection('usuarios');
+    try {
+      final usuarios = FirebaseFirestore.instance.collection('usuarios');
 
-    final dados = <String, dynamic>{
-      'nome': nome,
-      'consentimento': true,
-      'cadastroConcluido': true,
-      'fotoRosto': Blob(foto),
-      'fotoTamanhoBytes': foto.lengthInBytes,
-      'fotoSalvaEm': FieldValue.serverTimestamp(),
-    };
-
-    if (_idCadastro == null) {
-      dados['criadoEm'] = FieldValue.serverTimestamp();
-
-      final documento = await usuarios.add(dados);
+      final documento = usuarios.doc(_idCadastro);
       _idCadastro = documento.id;
-    } else {
-      dados['atualizadoEm'] = FieldValue.serverTimestamp();
+      final versaoFoto = usuarios.doc().id;
 
-      // Atualiza o nome e substitui a foto no mesmo documento.
-      await usuarios.doc(_idCadastro!).update(dados);
-    }
+      final dados = <String, dynamic>{
+        'nome': nome,
+        'consentimento': true,
+        'cadastroConcluido': false,
+        'fotoVersao': versaoFoto,
+        'facialStatus': 'pendente',
+        'facialMensagem': 'Aguardando validação da foto.',
+        'facialEmbedding': FieldValue.delete(),
+        'facialModelo': FieldValue.delete(),
+        'facialFotoHash': FieldValue.delete(),
+        'facialResultadoVersao': FieldValue.delete(),
+        'facialProcessadoEm': FieldValue.delete(),
+        'atualizadoEm': FieldValue.serverTimestamp(),
+        'fotoRosto': Blob(foto),
+        'fotoTamanhoBytes': foto.lengthInBytes,
+        'fotoSalvaEm': FieldValue.serverTimestamp(),
+      };
 
-    if (!mounted) return;
+      if (!_criacaoConfirmada) {
+        dados['criadoEm'] = FieldValue.serverTimestamp();
+      }
+      // O ID é mantido mesmo em uma tentativa que falhe, evitando duplicação.
+      await documento.set(dados, SetOptions(merge: true));
+      _criacaoConfirmada = true;
 
-    await Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (context) => const TelaConcluida(),
-      ),
-    );
-  } catch (erro) {
-    if (!mounted) return;
+      if (!mounted) return;
 
-    _mostrarAviso('Não foi possível salvar o cadastro e a foto: $erro');
-  } finally {
-    if (mounted) {
-      setState(() {
-        _salvando = false;
-      });
+      await Navigator.of(context).push(
+        MaterialPageRoute(
+          builder: (context) =>
+              TelaValidacaoFacial(documento: documento, versaoFoto: versaoFoto),
+        ),
+      );
+    } catch (erro) {
+      if (!mounted) return;
+
+      _mostrarAviso('Não foi possível salvar o cadastro e a foto: $erro');
+    } finally {
+      if (mounted) {
+        setState(() {
+          _salvando = false;
+        });
+      }
     }
   }
-}
+
   @override
   Widget build(BuildContext context) {
     final foto = _fotoRosto;
@@ -286,9 +294,7 @@ Future<void> _finalizarCadastro() async {
                     decoration: BoxDecoration(
                       color: Colors.white,
                       borderRadius: BorderRadius.circular(18),
-                      border: Border.all(
-                        color: const Color(0xFFE7EDF3),
-                      ),
+                      border: Border.all(color: const Color(0xFFE7EDF3)),
                       boxShadow: const [
                         BoxShadow(
                           color: Color(0x0D000000),

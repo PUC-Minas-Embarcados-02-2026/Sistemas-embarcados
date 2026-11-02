@@ -9,3 +9,9 @@ app-mobile/build_old2/
 # Python
 __pycache__/
 *.pyc
+.venv/
+.pytest_cache/
+**/modelos/*.onnx
+**/usuarios_embeddings.json
+**/firebase_credentials.json
+**/*service-account*.json

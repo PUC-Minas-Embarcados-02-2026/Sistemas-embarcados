@@ -1,0 +1,9 @@
+# Python 3.11 ou 3.12, 64 bits. Instale em um ambiente virtual separado.
+numpy==1.26.4
+opencv-contrib-python==4.11.0.86
+mediapipe==0.10.21
+onnxruntime==1.20.1
+firebase-admin==6.6.0
+google-cloud-firestore==2.19.0
+protobuf==4.25.9
+grpcio-status==1.62.3

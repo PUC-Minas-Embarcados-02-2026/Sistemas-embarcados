@@ -152,7 +152,8 @@ class _TelaCameraState extends State<TelaCamera> {
                                 padding: EdgeInsets.all(20),
                                 child: Text(
                                   'Posicione o rosto no centro da imagem '
-                                  'e procure um local bem iluminado.',
+                                  'e procure um local bem iluminado. '
+                                  'Retire a máscara e deixe apenas você na imagem.',
                                   textAlign: TextAlign.center,
                                 ),
                               ),

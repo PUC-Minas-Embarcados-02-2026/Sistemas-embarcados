@@ -49,31 +49,33 @@ class DetectorFacial:
         Roda a detecção no frame e retorna o rosto com maior bounding box
         (ou seja, o mais próximo da câmera). Retorna None se nenhum rosto for achado.
         """
+        rostos = self.detectar_rostos(frame_bgr)
+        return max(rostos, key=lambda r: (r.bbox[2] - r.bbox[0]) *
+                   (r.bbox[3] - r.bbox[1]), default=None)
+
+    def detectar_rostos(self, frame_bgr: np.ndarray) -> list[ResultadoRosto]:
+        """Expõe todos os rostos para impedir cadastro com várias pessoas."""
         h, w, _ = frame_bgr.shape
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=frame_rgb)
 
         resultado = self.detector.detect(mp_image)
         if not resultado.face_landmarks:
-            return None
+            return []
 
-        melhor_rosto = None
-        melhor_area = -1
+        rostos = []
         for landmarks in resultado.face_landmarks:
             xs = [lm.x for lm in landmarks]
             ys = [lm.y for lm in landmarks]
             x_min, x_max = min(xs) * w, max(xs) * w
             y_min, y_max = min(ys) * h, max(ys) * h
-            area = (x_max - x_min) * (y_max - y_min)
-            if area > melhor_area:
-                melhor_area = area
-                proporcao = (x_max - x_min) / w
-                melhor_rosto = ResultadoRosto(
-                    landmarks=landmarks,
-                    bbox=(int(x_min), int(y_min), int(x_max), int(y_max)),
-                    proporcao_frame=proporcao,
-                )
-        return melhor_rosto
+            proporcao = (x_max - x_min) / w
+            rostos.append(ResultadoRosto(
+                landmarks=landmarks,
+                bbox=(int(x_min), int(y_min), int(x_max), int(y_max)),
+                proporcao_frame=proporcao,
+            ))
+        return rostos
 
     def fechar(self):
         self.detector.close()

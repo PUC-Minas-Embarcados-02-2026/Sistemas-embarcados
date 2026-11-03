@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
 
+import '../componentes/botao_sair.dart';
+
 class TelaConcluida extends StatelessWidget {
-  const TelaConcluida({super.key});
+  const TelaConcluida({super.key, required this.aoSair});
+  final Future<void> Function() aoSair;
 
   static const Color azulPrincipal = Color(0xFF0B4F8A);
   static const Color fundo = Color(0xFFF7FAFC);
@@ -13,7 +16,7 @@ class TelaConcluida extends StatelessWidget {
     return Scaffold(
       backgroundColor: fundo,
       body: SafeArea(
-        child: Padding(
+        child: SingleChildScrollView(
           padding: const EdgeInsets.symmetric(horizontal: 24),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -78,34 +81,7 @@ class TelaConcluida extends StatelessWidget {
 
               const SizedBox(height: 123),
 
-              // Botão Ir para login
-              SizedBox(
-                width: double.infinity,
-                height: 52,
-                child: ElevatedButton(
-                  onPressed: () {
-                    Navigator.of(context).popUntil(
-                      (rota) => rota.isFirst,
-                    );
-                  },
-                  style: ElevatedButton.styleFrom(
-                    elevation: 0,
-                    backgroundColor: azulPrincipal,
-                    foregroundColor: Colors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                  child: const Text(
-                    'Ir para login',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-              ),
-
+              BotaoSair(aoSair: aoSair),
               const SizedBox(height: 12),
 
               // Botão Atualizar cadastro
@@ -119,20 +95,14 @@ class TelaConcluida extends StatelessWidget {
                   style: OutlinedButton.styleFrom(
                     foregroundColor: azulPrincipal,
                     backgroundColor: Colors.white,
-                    side: const BorderSide(
-                      color: azulPrincipal,
-                      width: 1.5,
-                    ),
+                    side: const BorderSide(color: azulPrincipal, width: 1.5),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(12),
                     ),
                   ),
                   child: const Text(
                     'Atualizar cadastro',
-                    style: TextStyle(
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
+                    style: TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
                   ),
                 ),
               ),

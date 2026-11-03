@@ -1,0 +1,208 @@
+"""
+destravamento.py
+
+Fluxo de DESTRAVAMENTO DA CATRACA (item 2 do documento "Reconhecimento_Facial"):
+  - detecta o rosto mais proximo da camera
+  - gera o embedding e compara com os usuarios cadastrados
+  - se bater com algum usuario (acima do limiar), aciona o servo motor
+  - se a deteccao facial falhar continuamente, cai para o fallback RFID (RC522)
+
+O acionamento real do servo motor e a leitura do RC522 estao isolados em
+funcoes separadas (`abrir_catraca` / `ler_rfid`) para serem trocadas pela
+implementacao real de GPIO quando o codigo for rodar no Raspberry Pi.
+"""
+
+import time
+import cv2
+import serial
+
+import config
+from face_utils import DetectorFacial, avaliar_distancia, avaliar_qualidade
+from embedding import ExtratorPlaceholder, ExtratorTFLite
+from database import BancoUsuarios
+
+# Numero de frames seguidos sem rosto valido antes de oferecer o fallback RFID
+FRAMES_FALHA_ANTES_DO_RFID = 60  # ~ alguns segundos, depende do FPS da webcam
+
+
+def abrir_catraca(usuario: str = None, via: str = "facial", serial_conn=None):
+    """
+    Placeholder para o acionamento do servo motor.
+    No Raspberry Pi real, aqui entraria algo como:
+
+        from gpiozero import Servo
+        servo = Servo(17)
+        servo.max()
+        time.sleep(2)
+        servo.min()
+    """
+    quem = usuario or "usuario RFID"
+    print(f"[CATRACA] Acesso liberado para '{quem}' via {via}. Acionando servo motor...")
+    
+    if serial_conn and via == "facial":
+        try:
+            # O Arduino espera <nome>\n para mostrar no display
+            msg = f"{quem}\n"
+            serial_conn.write(msg.encode('utf-8'))
+            serial_conn.flush()
+            print(f"[SERIAL] Nome enviado pro display: {quem}")
+        except Exception as e:
+            print(f"[ERRO SERIAL] Falha ao comunicar com o Arduino: {e}")
+
+
+
+def ler_rfid(serial_conn=None):
+    """
+    Lê a resposta do Arduino via Serial.
+    Os novos códigos de Arduino imprimem "Abre porta" quando a tag é válida.
+    """
+    if serial_conn and serial_conn.in_waiting > 0:
+        try:
+            linha = serial_conn.readline().decode('utf-8', errors='ignore').strip()
+            if not linha:
+                return None
+            
+            if linha == "Abre porta":
+                return "Tag Valida"
+            elif linha == "Invalido :(":
+                print("[RFID] Tag lida pelo Arduino é inválida.")
+            else:
+                print(f"[ARDUINO MSG] {linha}")
+        except Exception as e:
+            print(f"[ERRO SERIAL] {e}")
+    return None
+
+
+def rodar_catraca():
+    detector = DetectorFacial()
+    extrator = ExtratorTFLite("mobilefacenet.tflite")
+    banco = BancoUsuarios()
+
+    if not banco.usuarios_cadastrados():
+        print("[AVISO] Nenhum usuario cadastrado ainda. Rode registro.py primeiro.")
+
+    import os
+    if os.name == 'nt':
+        cap = cv2.VideoCapture(config.CAMERA_INDEX, cv2.CAP_DSHOW)
+    else:
+        cap = cv2.VideoCapture(config.CAMERA_INDEX)
+    cap.set(cv2.CAP_PROP_BUFFERSIZE, 1) # Reduz o lag (evita acumular frames antigos na fila)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, config.FRAME_WIDTH)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, config.FRAME_HEIGHT)
+
+    # --- Conexão Serial com Arduino ---
+    serial_conn = None
+    if config.PORTA_ARDUINO:
+        try:
+            print(f"[SERIAL] Conectando ao Arduino na porta {config.PORTA_ARDUINO}...")
+            serial_conn = serial.Serial(config.PORTA_ARDUINO, config.BAUDRATE_ARDUINO, timeout=1)
+            time.sleep(2)  # Aguarda o Arduino reiniciar após conectar a serial
+        except Exception as e:
+            print(f"[ERRO SERIAL] Não foi possível conectar ao Arduino: {e}")
+
+    print("[CATRACA] Sistema ativo. Pressione 'q' para encerrar.")
+    frames_sem_rosto_valido = 0
+
+    try:
+        while True:
+            ok, frame = cap.read()
+            if not ok:
+                print("Falha ao ler a camera.")
+                break
+
+            rosto = detector.detectar_rosto_mais_proximo(frame)
+            mensagem = ""
+
+            if rosto is None:
+                frames_sem_rosto_valido += 1
+                mensagem = "Aproxime o rosto da catraca."
+            else:
+                distancia = avaliar_distancia(rosto, modo="destravamento")
+                qualidade = avaliar_qualidade(rosto, modo="destravamento")
+                if distancia == "longe":
+                    frames_sem_rosto_valido += 1
+                    mensagem = "Aproxime-se um pouco mais."
+                elif distancia == "perto_demais":
+                    frames_sem_rosto_valido += 1
+                    mensagem = "Afaste-se um pouco."
+                elif qualidade != "ok":
+                    frames_sem_rosto_valido += 1
+                    mensagem = {"virado": "Olhe de frente para a camera.",
+                                "inclinado": "Mantenha a cabeca reta.",
+                                "borrado": "Imagem borrada. Fique parado."}[qualidade]
+                else:
+                    embedding = extrator.extrair(frame, rosto.bbox, rosto.landmarks)
+                    nome, similaridade = banco.buscar_mais_proximo(embedding)
+
+                    if nome is not None and similaridade >= config.LIMIAR_SIMILARIDADE:
+                        abrir_catraca(usuario=nome, via="facial", serial_conn=serial_conn)
+                        frames_sem_rosto_valido = 0
+                        
+                        # Em vez de pausar o vídeo por 1.5s (o que causa o congelamento),
+                        # mostramos a mensagem na tela por 45 frames (aprox 1.5s) sem travar a câmera
+                        for _ in range(45):
+                            ok, f = cap.read()
+                            if not ok: break
+                            cv2.putText(f, f"Bem-vindo, {nome}!", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                            cv2.imshow("Catraca - Prototipo", f)
+                            cv2.waitKey(1)
+                            
+                        # Limpa o buffer acumulado para a câmera voltar ao tempo real
+                        for _ in range(5): cap.read()
+                        continue
+                    else:
+                        frames_sem_rosto_valido += 1
+                        mensagem = f"Rosto nao reconhecido (similaridade {similaridade:.2f})."
+
+            # fallback para RFID apos varias falhas seguidas de reconhecimento facial
+            if frames_sem_rosto_valido >= FRAMES_FALHA_ANTES_DO_RFID:
+                mensagem = "Reconhecimento facial falhou. Aproxime o RFID/celular."
+                
+                if rosto is not None:
+                    x1, y1, x2, y2 = rosto.bbox
+                    cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+                cv2.putText(frame, mensagem, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
+                            0.6, (0, 0, 255), 2)
+                cv2.imshow("Catraca - Prototipo", frame)
+                cv2.waitKey(1)
+                
+                # Reseta contador para não ficar travado apenas nessa tela
+                frames_sem_rosto_valido = 0
+
+            # Verifica constantemente se o Arduino fez leitura do RFID (sem travar)
+            tag = ler_rfid(serial_conn)
+            if tag is not None:
+                abrir_catraca(usuario="Visitante RFID", via="rfid", serial_conn=serial_conn)
+                frames_sem_rosto_valido = 0
+                
+                # Mostra feedback visual
+                for _ in range(45):
+                    ok, f = cap.read()
+                    if not ok: break
+                    cv2.putText(f, "Bem-vindo, RFID!", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2)
+                    cv2.imshow("Catraca - Prototipo", f)
+                    cv2.waitKey(1)
+                    
+                # Limpa o buffer acumulado para a câmera voltar ao tempo real
+                for _ in range(5): cap.read()
+                continue
+
+            if rosto is not None:
+                x1, y1, x2, y2 = rosto.bbox
+                cv2.rectangle(frame, (x1, y1), (x2, y2), (255, 0, 0), 2)
+            cv2.putText(frame, mensagem, (10, 30), cv2.FONT_HERSHEY_SIMPLEX,
+                        0.6, (0, 0, 255), 2)
+            cv2.imshow("Catraca - Prototipo", frame)
+
+            if cv2.waitKey(1) & 0xFF == ord("q"):
+                break
+    finally:
+        if serial_conn:
+            serial_conn.close()
+        cap.release()
+        cv2.destroyAllWindows()
+        detector.fechar()
+
+
+if __name__ == "__main__":
+    rodar_catraca()

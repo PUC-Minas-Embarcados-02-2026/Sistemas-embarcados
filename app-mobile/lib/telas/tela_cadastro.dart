@@ -4,11 +4,15 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
+import '../servicos/autenticacao_service.dart';
+import '../componentes/botao_sair.dart';
 import 'tela_camera.dart';
 import 'tela_validacao_facial.dart';
 
 class TelaCadastro extends StatefulWidget {
-  const TelaCadastro({super.key});
+  const TelaCadastro({super.key, required this.usuario, required this.aoSair});
+  final UsuarioAutenticado usuario;
+  final Future<void> Function() aoSair;
 
   @override
   State<TelaCadastro> createState() => _TelaCadastroState();
@@ -21,7 +25,8 @@ class _TelaCadastroState extends State<TelaCadastro> {
   bool _salvando = false;
   bool _abrindoCamera = false;
 
-  String? _idCadastro;
+  bool _carregando = true;
+  bool _erroAoCarregar = false;
   bool _criacaoConfirmada = false;
   Uint8List? _fotoRosto;
 
@@ -29,6 +34,38 @@ class _TelaCadastroState extends State<TelaCadastro> {
   static const Color _textoPrincipal = Color(0xFF1F2937);
   static const Color _textoSecundario = Color(0xFF6B7280);
   static const Color _borda = Color(0xFFD6DEE8);
+
+  @override
+  void initState() {
+    super.initState();
+    _carregarCadastro();
+  }
+
+  Future<void> _carregarCadastro() async {
+    setState(() {
+      _carregando = true;
+      _erroAoCarregar = false;
+    });
+    try {
+      final documento = await FirebaseFirestore.instance
+          .collection('usuarios')
+          .doc(widget.usuario.uid)
+          .get();
+      if (!mounted) return;
+      final dados = documento.data();
+      setState(() {
+        _criacaoConfirmada = documento.exists;
+        _controladorNome.text = dados?['nome'] as String? ?? '';
+        _consentimentoAutorizado = dados?['consentimento'] == true;
+        final foto = dados?['fotoRosto'];
+        _fotoRosto = foto is Blob ? foto.bytes : null;
+      });
+    } catch (_) {
+      if (mounted) setState(() => _erroAoCarregar = true);
+    } finally {
+      if (mounted) setState(() => _carregando = false);
+    }
+  }
 
   @override
   void dispose() {
@@ -42,7 +79,7 @@ class _TelaCadastroState extends State<TelaCadastro> {
   }
 
   Future<void> _capturarRosto() async {
-    if (_salvando || _abrindoCamera) return;
+    if (_salvando || _abrindoCamera || _carregando || _erroAoCarregar) return;
 
     if (!_consentimentoAutorizado) {
       _mostrarAviso(
@@ -77,15 +114,15 @@ class _TelaCadastroState extends State<TelaCadastro> {
   }
 
   Future<void> _finalizarCadastro() async {
-    if (_salvando || _abrindoCamera) return;
+    if (_salvando || _abrindoCamera || _carregando || _erroAoCarregar) return;
 
     FocusScope.of(context).unfocus();
 
     final nome = _controladorNome.text.trim();
     final foto = _fotoRosto;
 
-    if (nome.isEmpty) {
-      _mostrarAviso('Digite seu nome completo.');
+    if (nome.isEmpty || nome.length > 200) {
+      _mostrarAviso('Digite seu nome completo, com até 200 caracteres.');
       return;
     }
 
@@ -117,11 +154,12 @@ class _TelaCadastroState extends State<TelaCadastro> {
     try {
       final usuarios = FirebaseFirestore.instance.collection('usuarios');
 
-      final documento = usuarios.doc(_idCadastro);
-      _idCadastro = documento.id;
+      final documento = usuarios.doc(widget.usuario.uid);
       final versaoFoto = usuarios.doc().id;
 
       final dados = <String, dynamic>{
+        'uid': widget.usuario.uid,
+        'email': widget.usuario.email,
         'nome': nome,
         'consentimento': true,
         'cadastroConcluido': false,
@@ -150,14 +188,19 @@ class _TelaCadastroState extends State<TelaCadastro> {
 
       await Navigator.of(context).push(
         MaterialPageRoute(
-          builder: (context) =>
-              TelaValidacaoFacial(documento: documento, versaoFoto: versaoFoto),
+          builder: (context) => TelaValidacaoFacial(
+            documento: documento,
+            versaoFoto: versaoFoto,
+            aoSair: widget.aoSair,
+          ),
         ),
       );
     } catch (erro) {
       if (!mounted) return;
 
-      _mostrarAviso('Não foi possível salvar o cadastro e a foto: $erro');
+      _mostrarAviso(
+        'Não foi possível salvar. Confira sua conexão e tente novamente.',
+      );
     } finally {
       if (mounted) {
         setState(() {
@@ -170,6 +213,25 @@ class _TelaCadastroState extends State<TelaCadastro> {
   @override
   Widget build(BuildContext context) {
     final foto = _fotoRosto;
+    if (_carregando || _erroAoCarregar) {
+      return Scaffold(
+        appBar: AppBar(actions: [BotaoSair(aoSair: widget.aoSair)]),
+        body: Center(
+          child: _carregando
+              ? const CircularProgressIndicator()
+              : Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Text('Não foi possível carregar seu cadastro.'),
+                    TextButton(
+                      onPressed: _carregarCadastro,
+                      child: const Text('Tentar novamente'),
+                    ),
+                  ],
+                ),
+        ),
+      );
+    }
 
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAFC),
@@ -185,15 +247,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      IconButton(
-                        onPressed: _salvando
-                            ? null
-                            : () => Navigator.of(context).pop(),
-                        icon: const Icon(
-                          Icons.chevron_left,
-                          size: 30,
-                          color: _azulPrincipal,
-                        ),
+                      BotaoSair(
+                        aoSair: widget.aoSair,
+                        habilitado: !_salvando && !_abrindoCamera,
                       ),
                       Text(
                         'CADASTRO',
@@ -207,11 +263,21 @@ class _TelaCadastroState extends State<TelaCadastro> {
                   ),
                   const SizedBox(height: 18),
                   Text(
-                    'Complete seu cadastro',
+                    _criacaoConfirmada
+                        ? 'Seu cadastro'
+                        : 'Complete seu cadastro',
                     style: GoogleFonts.inter(
                       fontSize: 27,
                       fontWeight: FontWeight.w700,
                       color: _textoPrincipal,
+                    ),
+                  ),
+                  const SizedBox(height: 7),
+                  Text(
+                    widget.usuario.email,
+                    style: GoogleFonts.inter(
+                      fontSize: 12,
+                      color: _textoSecundario,
                     ),
                   ),
                   const SizedBox(height: 7),

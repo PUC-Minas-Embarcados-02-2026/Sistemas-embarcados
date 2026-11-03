@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
+import '../componentes/botao_sair.dart';
 import 'tela_concluida.dart';
 
 /// A foto salva ainda precisa ser validada pelo processador no computador.
@@ -11,10 +12,12 @@ class TelaValidacaoFacial extends StatefulWidget {
     super.key,
     required this.documento,
     required this.versaoFoto,
+    required this.aoSair,
   });
 
   final DocumentReference<Map<String, dynamic>> documento;
   final String versaoFoto;
+  final Future<void> Function() aoSair;
 
   @override
   State<TelaValidacaoFacial> createState() => _TelaValidacaoFacialState();
@@ -44,7 +47,10 @@ class _TelaValidacaoFacialState extends State<TelaValidacaoFacial> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFF7FAFC),
-      appBar: AppBar(title: const Text('Validação do rosto')),
+      appBar: AppBar(
+        title: const Text('Validação do rosto'),
+        actions: [BotaoSair(aoSair: widget.aoSair)],
+      ),
       body: StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
         stream: _alteracoes,
         builder: (context, snapshot) {
@@ -135,7 +141,8 @@ class _TelaValidacaoFacialState extends State<TelaValidacaoFacial> {
                       FilledButton(
                         onPressed: () => Navigator.of(context).pushReplacement(
                           MaterialPageRoute<void>(
-                            builder: (_) => const TelaConcluida(),
+                            builder: (_) =>
+                                TelaConcluida(aoSair: widget.aoSair),
                           ),
                         ),
                         child: const Text('Continuar'),

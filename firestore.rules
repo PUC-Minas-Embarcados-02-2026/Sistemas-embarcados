@@ -1,0 +1,65 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function dono(uid) {
+      return request.auth != null && request.auth.uid == uid;
+    }
+
+    // O aplicativo apenas envia uma foto pendente. O Firebase Admin usado
+    // pelo serviço Python é responsável pelo resultado do reconhecimento.
+    function cadastroPendente(uid) {
+      let d = request.resource.data;
+      return d.keys().hasAll([
+          'uid', 'email', 'nome', 'consentimento', 'cadastroConcluido',
+          'fotoVersao', 'facialStatus', 'facialMensagem', 'atualizadoEm',
+          'fotoRosto', 'fotoTamanhoBytes', 'fotoSalvaEm', 'criadoEm'
+        ])
+        && !d.keys().hasAny([
+          'facialEmbedding', 'facialModelo', 'facialFotoHash',
+          'facialResultadoVersao', 'facialProcessadoEm'
+        ])
+        && d.uid == uid
+        && d.email == request.auth.token.email
+        && d.nome is string && d.nome.size() > 0 && d.nome.size() <= 200
+        && d.consentimento == true && d.cadastroConcluido == false
+        && d.fotoVersao is string && d.fotoVersao.size() > 0
+        && d.fotoVersao.size() <= 128
+        && d.facialStatus == 'pendente'
+        && d.facialMensagem == 'Aguardando validação da foto.'
+        && d.fotoRosto is bytes && d.fotoRosto.size() > 0
+        && d.fotoRosto.size() <= 716800
+        && d.fotoTamanhoBytes is int
+        && d.fotoTamanhoBytes == d.fotoRosto.size()
+        && d.atualizadoEm == request.time && d.fotoSalvaEm == request.time;
+    }
+
+    match /usuarios/{uid} {
+      allow get: if dono(uid);
+      allow create: if dono(uid) && cadastroPendente(uid)
+        && request.resource.data.keys().hasOnly([
+          'uid', 'email', 'nome', 'consentimento', 'cadastroConcluido',
+          'fotoVersao', 'facialStatus', 'facialMensagem', 'atualizadoEm',
+          'fotoRosto', 'fotoTamanhoBytes', 'fotoSalvaEm', 'criadoEm'
+        ])
+        && request.resource.data.criadoEm == request.time;
+      allow update: if dono(uid) && cadastroPendente(uid)
+        // Preserva campos atribuídos pelo administrador, como RFID.
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+          'uid', 'email', 'nome', 'consentimento', 'cadastroConcluido',
+          'fotoVersao', 'facialStatus', 'facialMensagem', 'atualizadoEm',
+          'fotoRosto', 'fotoTamanhoBytes', 'fotoSalvaEm',
+          'facialEmbedding', 'facialModelo', 'facialFotoHash',
+          'facialResultadoVersao', 'facialProcessadoEm'
+        ])
+        && request.resource.data.criadoEm == resource.data.criadoEm
+        && request.resource.data.fotoVersao != resource.data.fotoVersao;
+      allow list, delete: if false;
+    }
+
+    // Inclui a antiga coleção 'usuario' e os registros de acesso.
+    // O serviço Python acessa essas coleções usando Firebase Admin.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

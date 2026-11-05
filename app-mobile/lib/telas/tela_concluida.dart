@@ -54,7 +54,7 @@ class TelaConcluida extends StatelessWidget {
                 child: Column(
                   children: [
                     const Text(
-                      'Cadastro finalizado\ncom sucesso',
+                      'Cadastro realizado\ncom sucesso',
                       textAlign: TextAlign.center,
                       style: TextStyle(
                         color: textoPrincipal,

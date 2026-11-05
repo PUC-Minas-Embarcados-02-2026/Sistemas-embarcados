@@ -4,7 +4,6 @@ import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:flutter/material.dart';
 
 import '../componentes/botao_sair.dart';
-import 'tela_concluida.dart';
 
 /// A foto salva ainda precisa ser validada pelo processador no computador.
 class TelaValidacaoFacial extends StatefulWidget {
@@ -138,15 +137,12 @@ class _TelaValidacaoFacialState extends State<TelaValidacaoFacial> {
                     Text(mensagem, textAlign: TextAlign.center),
                     const SizedBox(height: 28),
                     if (pronto)
+                      // Volta para quem abriu esta tela, que mostra "Meu cadastro".
                       FilledButton(
-                        onPressed: () => Navigator.of(context).pushReplacement(
-                          MaterialPageRoute<void>(
-                            builder: (_) =>
-                                TelaConcluida(aoSair: widget.aoSair),
-                          ),
-                        ),
-                        child: const Text('Continuar'),
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: const Text('Ver meu cadastro'),
                       ),
+                    if (!pronto)
                     TextButton(
                       onPressed: () => Navigator.of(context).pop(),
                       child: Text(

@@ -7,6 +7,7 @@ import 'package:google_fonts/google_fonts.dart';
 import '../servicos/autenticacao_service.dart';
 import '../componentes/botao_sair.dart';
 import 'tela_camera.dart';
+import 'tela_meu_cadastro.dart';
 import 'tela_validacao_facial.dart';
 
 class TelaCadastro extends StatefulWidget {
@@ -28,6 +29,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
   bool _carregando = true;
   bool _erroAoCarregar = false;
   bool _criacaoConfirmada = false;
+
+  /// Já existe um documento para esta conta: mostra "Meu cadastro".
+  bool _jaCadastrado = false;
   Uint8List? _fotoRosto;
 
   static const Color _azulPrincipal = Color(0xFF0B4F8A);
@@ -59,6 +63,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
         _consentimentoAutorizado = dados?['consentimento'] == true;
         final foto = dados?['fotoRosto'];
         _fotoRosto = foto is Blob ? foto.bytes : null;
+        // Quem já tem cadastro vê o perfil ao entrar de novo, sem repetir
+        // o processo. O formulário fica só para o primeiro cadastro.
+        _jaCadastrado = documento.exists;
       });
     } catch (_) {
       if (mounted) setState(() => _erroAoCarregar = true);
@@ -195,6 +202,10 @@ class _TelaCadastroState extends State<TelaCadastro> {
           ),
         ),
       );
+
+      // Ao voltar da validação, recarrega: com cadastro salvo, abre
+      // "Meu cadastro" em vez de repetir o formulário.
+      if (mounted) await _carregarCadastro();
     } catch (erro) {
       if (!mounted) return;
 
@@ -213,6 +224,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
   @override
   Widget build(BuildContext context) {
     final foto = _fotoRosto;
+    if (!_carregando && !_erroAoCarregar && _jaCadastrado) {
+      return TelaMeuCadastro(usuario: widget.usuario, aoSair: widget.aoSair);
+    }
     if (_carregando || _erroAoCarregar) {
       return Scaffold(
         appBar: AppBar(actions: [BotaoSair(aoSair: widget.aoSair)]),

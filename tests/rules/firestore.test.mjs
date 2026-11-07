@@ -107,3 +107,31 @@ test('reenvio preserva RFID do administrador e não permite adulterá-lo', async
   await assertFails(setDoc(ref, { ...novo, rfid: 'OUTRO' }, { merge: true }));
   await assertSucceeds(setDoc(ref, novo, { merge: true }));
 });
+
+test('cliente edita só o nome, sem alterar foto, status ou RFID', async () => {
+  const ref = doc(banco(), 'usuarios/alice');
+  await setDoc(ref, cadastro());
+  await assertSucceeds(updateDoc(ref, { nome: 'Novo Nome', atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { nome: '', atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { nome: 'x'.repeat(201), atualizadoEm: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { nome: 'Outro', atualizadoEm: serverTimestamp(), facialStatus: 'pronto' }));
+  await assertFails(updateDoc(ref, { nome: 'Outro', atualizadoEm: serverTimestamp(), rfid: 'X' }));
+  await assertFails(updateDoc(doc(banco('bob'), 'usuarios/alice'), { nome: 'Invasor', atualizadoEm: serverTimestamp() }));
+});
+
+test('cadastro aceita a escolha de NFC e ela pode ser mudada depois', async () => {
+  const ref = doc(banco(), 'usuarios/alice');
+  await assertSucceeds(setDoc(ref, { ...cadastro(), nfcAutorizado: false, nfcDecididoEm: serverTimestamp() }));
+  await assertSucceeds(updateDoc(ref, { nfcAutorizado: true, nfcDecididoEm: serverTimestamp() }));
+  await assertSucceeds(updateDoc(ref, { nfcAutorizado: false, nfcDecididoEm: serverTimestamp() }));
+});
+
+test('escolha de NFC rejeita valor inválido, campos extras e outra conta', async () => {
+  const ref = doc(banco(), 'usuarios/alice');
+  await assertFails(setDoc(ref, { ...cadastro(), nfcAutorizado: 'sim', nfcDecididoEm: serverTimestamp() }));
+  await setDoc(ref, cadastro());
+  await assertFails(updateDoc(ref, { nfcAutorizado: 'sim', nfcDecididoEm: serverTimestamp() }));
+  await assertFails(updateDoc(ref, { nfcAutorizado: true, nfcDecididoEm: serverTimestamp(), rfid: 'X' }));
+  await assertFails(updateDoc(ref, { nfcAutorizado: true, nfcDecididoEm: serverTimestamp(), facialStatus: 'pronto' }));
+  await assertFails(updateDoc(doc(banco('bob'), 'usuarios/alice'), { nfcAutorizado: true, nfcDecididoEm: serverTimestamp() }));
+});

@@ -42,6 +42,15 @@ service cloud.firestore {
           'fotoRosto', 'fotoTamanhoBytes', 'fotoSalvaEm', 'criadoEm'
         ])
         && request.resource.data.criadoEm == request.time;
+      // Edição só do nome: não mexe na foto nem no resultado do reconhecimento.
+      allow update: if dono(uid)
+        && request.resource.data.diff(resource.data).affectedKeys()
+            .hasOnly(['nome', 'atualizadoEm'])
+        && request.resource.data.nome is string
+        && request.resource.data.nome.size() > 0
+        && request.resource.data.nome.size() <= 200
+        && request.resource.data.atualizadoEm == request.time;
+      // Troca de foto: volta para pendente e exige nova validação.
       allow update: if dono(uid) && cadastroPendente(uid)
         // Preserva campos atribuídos pelo administrador, como RFID.
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly([

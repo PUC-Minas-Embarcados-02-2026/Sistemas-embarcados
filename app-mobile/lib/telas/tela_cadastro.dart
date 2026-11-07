@@ -6,6 +6,7 @@ import 'package:google_fonts/google_fonts.dart';
 
 import '../servicos/autenticacao_service.dart';
 import '../componentes/botao_sair.dart';
+import 'tela_autorizacao_nfc.dart';
 import 'tela_camera.dart';
 import 'tela_meu_cadastro.dart';
 import 'tela_validacao_facial.dart';
@@ -24,6 +25,9 @@ class _TelaCadastroState extends State<TelaCadastro> {
 
   bool _consentimentoAutorizado = false;
   bool _salvando = false;
+
+  /// Escolha sobre usar o celular como cartão NFC (null = ainda não decidiu).
+  bool? _escolhaNfc;
   bool _abrindoCamera = false;
 
   bool _carregando = true;
@@ -154,6 +158,16 @@ class _TelaCadastroState extends State<TelaCadastro> {
       return;
     }
 
+    // Pergunta sobre o uso do celular como cartão de acesso (NFC) uma vez.
+    if (_escolhaNfc == null) {
+      final escolha = await Navigator.of(context).push<bool>(
+        MaterialPageRoute<bool>(builder: (_) => const TelaAutorizacaoNfc()),
+      );
+      // Voltou sem decidir: não finaliza o cadastro.
+      if (escolha == null || !mounted) return;
+      _escolhaNfc = escolha;
+    }
+
     setState(() {
       _salvando = true;
     });
@@ -186,6 +200,8 @@ class _TelaCadastroState extends State<TelaCadastro> {
 
       if (!_criacaoConfirmada) {
         dados['criadoEm'] = FieldValue.serverTimestamp();
+        dados['nfcAutorizado'] = _escolhaNfc ?? false;
+        dados['nfcDecididoEm'] = FieldValue.serverTimestamp();
       }
       // O ID é mantido mesmo em uma tentativa que falhe, evitando duplicação.
       await documento.set(dados, SetOptions(merge: true));
